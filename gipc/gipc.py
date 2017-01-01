@@ -5,14 +5,14 @@
 """
 gipc: child processes and inter-process communication (IPC) for gevent.
 
-gipc (pronunciation “gipsy”)
+gipc (pronunciation as in “gipsy”)
 
-* prevents negative side-effects of multiprocessing-based child process creation
-  in the context of gevent.
+* prevents negative side-effects of native multiprocessing-based child process
+  creation in the context of gevent.
 
 * provides the multiprocessing.Process API in a gevent-cooperative fashion.
 
-* comes up with a pipe-based transport layer for efficient gevent-cooperative
+* provides a pipe-based transport layer for efficient gevent-cooperative
   inter-process communication.
 """
 
@@ -26,26 +26,35 @@ import codecs
 import logging
 import multiprocessing
 import multiprocessing.process
-import multiprocessing.reduction
+import warnings
+
 from itertools import chain
+
 try:
     import cPickle as pickle
 except ImportError:
     import pickle
+
 WINDOWS = sys.platform == "win32"
+
 if WINDOWS:
     import msvcrt
+    try:
+        import multiprocessing.reduction
+    except ImportError:
+        # This is expected to occur on e.g. PyPy 5.6.0
+        warnings.warn(
+            "Could not import multiprocessing.reduction. Some features "
+            "will not work", category=RuntimeWarning)
 
+    # Identify method to use for transferring WinAPI pipe handles to children.
+    WINAPI_HANDLE_TRANSFER_STEAL = hasattr(
+        multiprocessing.reduction, "steal_handle")
 
 import gevent
 import gevent.os
 import gevent.lock
 import gevent.event
-
-
-# Decide which method to use for transferring WinAPI pipe handles to children.
-WINAPI_HANDLE_TRANSFER_STEAL = hasattr(
-    multiprocessing.reduction, "steal_handle")
 
 
 # Logging for debugging purposes. Usage of logging in this simple form in the
@@ -663,9 +672,9 @@ class _GIPCHandle(object):
         this. There is, however, no officially exposed Python API. Nevertheless,
         the function `multiprocessing.forking.duplicate` (in Python versions
         smaller than 3.4) and `multiprocessing.reduction.duplicate` (>= 3.4)
-        seems to be safely usable. In all versions, `duplicate` is part of
-        `multiprocessing.reduction`. As of 2015-07-20, the reduction module is
-        part of multiprocessing in all Python versions from 2.6 to 3.5.
+        seems to be safely usable. Update: as of 2015-07-20, the reduction
+        module is part of multiprocessing in all Python versions from 2.6.x to
+        3.5.x.
 
         The just outlined approach (DuplicateHandle() in parent, automatically
         inherit it in child) only works for Python versions smaller than 3.4:
